@@ -14,7 +14,10 @@ cd "$(dirname "$0")"
 ADB="adb"
 
 state=$($ADB get-state 2>/dev/null || true)
-[ "$state" = "device" ] || { echo "FATAL: phone not in adb device state (TWRP + authorized). Current: '$state'"; exit 1; }
+case "$state" in
+    device|recovery) : ;;
+    *) echo "FATAL: phone not in adb state (TWRP + authorized). Current: '$state'"; exit 1 ;;
+esac
 
 echo "== 1. push payload files =="
 $ADB shell mkdir -p /tmp
