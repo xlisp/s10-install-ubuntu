@@ -55,12 +55,18 @@ mount -t proc proc /tmp/stage/proc 2>/dev/null
 mount -t sysfs sys /tmp/stage/sys 2>/dev/null
 mount -o bind /dev /tmp/stage/dev 2>/dev/null
 
-DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/stage /usr/bin/env \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    DEBIAN_FRONTEND=noninteractive \
-    /usr/bin/dpkg --unpack --force-depends \
-    /debs/fdisk*.deb /debs/libfdisk*.deb /debs/libsmartcols*.deb \
-    /debs/dosfstools*.deb 2>&1 | tail -3
+# loop device nodes: recovery devtmpfs does not pre-create them
+[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
+for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
+# ensure the chroot sees the same nodes (create inside stage/dev too, bind may lag)
+for f in loop-control loop0 loop1 loop2 loop3 loop4 loop5 loop6 loop7; do
+    [ -e /tmp/stage/dev/$f ] || cp -a /dev/$f /tmp/stage/dev/$f 2>/dev/null || mknod /tmp/stage/dev/$f $(case $f in loop-control) echo c 10 237;; *) echo b 7 ${f#loop};; esac) 2>/dev/null
+done
+ls -la /tmp/stage/dev/loop* /tmp/stage/dev/loop-control 2>/dev/null | head -4
+
+DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/stage /bin/sh -c \
+    'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive \
+     dpkg --unpack --force-depends /debs/fdisk*.deb /debs/libfdisk*.deb /debs/libsmartcols*.deb /debs/dosfstools*.deb' 2>&1 | tail -3
 $CHROOT /tmp/stage /usr/sbin/ldconfig
 echo "staging tools ready:"
 $CHROOT /tmp/stage /usr/bin/which sfdisk mkfs.vfat mke2fs losetup blockdev
@@ -72,12 +78,8 @@ printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type
 $CHROOT /tmp/stage /usr/sbin/wipefs -a "$UDPATH" 2>/dev/null
 $CHROOT /tmp/stage /usr/bin/sfdisk --force "$UDPATH" /parts.sfdisk
 
-# loop device nodes are not auto-created in recovery devtmpfs
-[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
-for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
-
 # expose partitions via loop device (works regardless of nested-partition quirks)
-LO=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show "$UDPATH")
+LO=$($CHROOT /tmp/stage /usr/sbin/losetup -P -f --show "$UDPATH")
 echo "loop device: $LO"
 $CHROOT /tmp/stage /usr/sbin/blockdev --rereadpt "$LO"
 sleep 1
@@ -125,11 +127,10 @@ mount -t proc proc /tmp/mnt/proc 2>/dev/null
 mount -t sysfs sys /tmp/mnt/sys 2>/dev/null
 mount -o bind /dev /tmp/mnt/dev 2>/dev/null
 
-ENVHACK="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive"
-$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --unpack --force-depends /tmp/debs/*.deb 2>&1 | tail -5
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --unpack --force-depends /tmp/debs/*.deb' 2>&1 | tail -5
 $CHROOT /tmp/mnt /usr/sbin/ldconfig
-$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --configure -a 2>&1 | tail -5
-$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --configure -a 2>&1 | tail -5
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
 echo "init sanity: $(ls -la /tmp/mnt/sbin/init /tmp/mnt/usr/sbin/init 2>/dev/null)"
 
 # ----------------------------------------------------------------------------
