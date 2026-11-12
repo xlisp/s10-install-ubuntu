@@ -56,6 +56,7 @@ mount -t sysfs sys /tmp/stage/sys 2>/dev/null
 mount -o bind /dev /tmp/stage/dev 2>/dev/null
 
 DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/stage /usr/bin/env \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     DEBIAN_FRONTEND=noninteractive \
     /usr/bin/dpkg --unpack --force-depends \
     /debs/fdisk*.deb /debs/libfdisk*.deb /debs/libsmartcols*.deb \
@@ -67,12 +68,13 @@ $CHROOT /tmp/stage /usr/bin/which sfdisk mkfs.vfat mke2fs losetup blockdev
 # ----------------------------------------------------------------------------
 # 2. Partition userdata as a disk: GPT [esp 512MiB | ubuntu-root rest]
 # ----------------------------------------------------------------------------
+printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type=linux\n' > /tmp/stage/parts.sfdisk
 $CHROOT /tmp/stage /usr/sbin/wipefs -a "$UDPATH" 2>/dev/null
-$CHROOT /tmp/stage /usr/bin/sfdisk --force "$UDPATH" <<'PARTS'
-label: gpt
-name="esp", size=512MiB, type=uefi
-name="ubuntu-root", type=linux
-PARTS
+$CHROOT /tmp/stage /usr/bin/sfdisk --force "$UDPATH" /parts.sfdisk
+
+# loop device nodes are not auto-created in recovery devtmpfs
+[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
+for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
 
 # expose partitions via loop device (works regardless of nested-partition quirks)
 LO=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show "$UDPATH")
@@ -123,16 +125,11 @@ mount -t proc proc /tmp/mnt/proc 2>/dev/null
 mount -t sysfs sys /tmp/mnt/sys 2>/dev/null
 mount -o bind /dev /tmp/mnt/dev 2>/dev/null
 
-DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/mnt /usr/bin/env \
-    DEBIAN_FRONTEND=noninteractive \
-    /usr/bin/dpkg --unpack --force-depends /tmp/debs/*.deb 2>&1 | tail -5
+ENVHACK="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive"
+$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --unpack --force-depends /tmp/debs/*.deb 2>&1 | tail -5
 $CHROOT /tmp/mnt /usr/sbin/ldconfig
-DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/mnt /usr/bin/env \
-    DEBIAN_FRONTEND=noninteractive \
-    /usr/bin/dpkg --configure -a 2>&1 | tail -5
-DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/mnt /usr/bin/env \
-    DEBIAN_FRONTEND=noninteractive \
-    /usr/bin/dpkg --configure -a 2>&1 | tail -5
+$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --configure -a 2>&1 | tail -5
+$CHROOT /tmp/mnt /usr/bin/env $ENVHACK /usr/bin/dpkg --configure -a 2>&1 | tail -5
 echo "init sanity: $(ls -la /tmp/mnt/sbin/init /tmp/mnt/usr/sbin/init 2>/dev/null)"
 
 # ----------------------------------------------------------------------------
