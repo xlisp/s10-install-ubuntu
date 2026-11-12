@@ -68,12 +68,13 @@ dd if=$UD bs=1 skip=4096 count=8 2>/dev/null   # expect "EFI PART"
 echo ""
 
 # --- format -------------------------------------------------------------------
-echo "formatting ubuntu-root (ext4)..."
+echo "formatting ESP (ext4) and ubuntu-root (ext4)..."
+mke2fs -F -q -t ext4 -b 4096 -L ESP /dev/sda31p1 || { echo "FATAL: mke2fs ESP"; exec /bin/sh; }
 mke2fs -F -q -t ext4 -b 4096 -L ubuntu-root /dev/sda31p2 || { echo "FATAL: mke2fs root"; exec /bin/sh; }
 mount -t ext4 /dev/sda31p2 /mnt || { echo "FATAL: mount root"; exec /bin/sh; }
 mkdir -p /mnt/boot/efi
-mount -t vfat /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
-echo "ESP mounted (pre-seeded FAT32 image)."
+mount -t ext4 /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
+echo "filesystems ready"
 
 # --- payload from staging ------------------------------------------------------
 echo "reading payload from staging region ($PAYLOAD_SECTORS sectors)..."
