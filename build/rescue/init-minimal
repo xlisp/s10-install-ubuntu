@@ -1,0 +1,26 @@
+#!/bin/busybox sh
+# MINIMAL diagnostic init: boot, dump dmesg to ESP, drop to shell.
+BB=/bin/busybox
+$BB mkdir -p /proc /sys /dev /esp /tmp
+$BB mount -t devtmpfs devtmpfs /dev
+$BB mount -t proc proc /proc
+$BB --install -s /bin
+exec </dev/console >/dev/console 2>&1
+mount -t sysfs sys /sys
+echo "=================================================="
+echo " RESCUE-MINIMAL booted, kernel $(uname -r)"
+echo "=================================================="
+echo "--- /proc/partitions ---"
+cat /proc/partitions
+echo "--- /dev sda* ---"
+ls /dev | grep -E "^sda" || echo "(no sda nodes)"
+echo "--- try mount ESP (sda31p1) ---"
+if mount -t ext4 /dev/sda31p1 /esp; then
+    dmesg > /esp/panic-dmesg.txt
+    echo "dmesg saved to ESP (/esp/panic-dmesg.txt)"
+else
+    echo "ESP mount failed — trying sda31p2"
+    mount -t ext4 /dev/sda31p2 /esp && dmesg > /esp/panic-dmesg.txt && echo "saved to p2"
+fi
+echo "=== dropping to shell (bisect mode) ==="
+exec /bin/sh
