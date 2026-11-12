@@ -76,10 +76,12 @@ P2="${LO}p2"
 # 3. Filesystems
 # ----------------------------------------------------------------------------
 chroot /tmp/stage /sbin/mke2fs -q -t ext4 -b 4096 -L ubuntu-root -m 1 "$P2"
-chroot /tmp/stage /sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null || \
-    echo "WARN: mkfs.vfat failed ($?), ESP will be ext4 (U-Boot can read ext4)"
-chroot /tmp/stage /sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null || \
+if chroot /tmp/stage /sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null; then
+    echo "ESP formatted as fat32"
+else
+    echo "WARN: mkfs.vfat failed, ESP will be ext4 (U-Boot can read ext4)"
     chroot /tmp/stage /sbin/mke2fs -q -t ext4 -L ESP "$P1"
+fi
 
 # ----------------------------------------------------------------------------
 # 4. Mount and populate rootfs
