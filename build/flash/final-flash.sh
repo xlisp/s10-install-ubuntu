@@ -23,8 +23,8 @@ echo "== 1. push payload files =="
 $ADB shell mkdir -p /tmp
 $ADB push staging-payload.tar.gz /tmp/                      # staged into userdata tail
 $ADB push ubuntu-base.tar.gz /tmp/                          # chroot base for mke2fs/debugfs
-$ADB push assets/vmlinuz /tmp/vmlinuz                       # mainline kernel (pmOS 7.2)
-$ADB push assets/esp/EFI/BOOT/systemd-bootaa64.efi /tmp/BOOTAA64.EFI
+$ADB push ../assets/vmlinuz /tmp/vmlinuz                       # mainline kernel (pmOS 7.2)
+$ADB push ../assets/esp/EFI/BOOT/systemd-bootaa64.efi /tmp/BOOTAA64.EFI
 $ADB push initramfs-rescue.gz /tmp/initramfs-rescue.gz      # busybox rescue initramfs
 
 echo "== 2. run device-side staging =="
