@@ -68,12 +68,12 @@ dd if=$UD bs=1 skip=4096 count=8 2>/dev/null   # expect "EFI PART"
 echo ""
 
 # --- format -------------------------------------------------------------------
-echo "formatting ESP (ext4) and ubuntu-root (ext4)..."
-mke2fs -F -q -t ext4 -L ESP /dev/sda31p1 || { echo "FATAL: mke2fs ESP"; exec /bin/sh; }
+echo "formatting ubuntu-root (ext4)..."
 mke2fs -F -q -t ext4 -b 4096 -L ubuntu-root /dev/sda31p2 || { echo "FATAL: mke2fs root"; exec /bin/sh; }
 mount -t ext4 /dev/sda31p2 /mnt || { echo "FATAL: mount root"; exec /bin/sh; }
 mkdir -p /mnt/boot/efi
-mount -t ext4 /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
+mount -t vfat /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
+echo "ESP mounted (pre-seeded FAT32 image)."
 
 # --- payload from staging ------------------------------------------------------
 echo "reading payload from staging region ($PAYLOAD_SECTORS sectors)..."
@@ -126,21 +126,23 @@ ln -sf /dev/null $R/etc/systemd/system/sleep.target
 ln -sf /dev/null $R/etc/systemd/system/suspend.target
 ln -sf /dev/null $R/etc/systemd/system/hibernate.target
 
-# --- ESP ------------------------------------------------------------------------
-cp /payload/esp/loader/loader.conf /esp/loader/ 2>/dev/null || mkdir -p /esp/loader /esp/loader/entries /esp/EFI/BOOT
-cp /payload/esp/loader/loader.conf /esp/loader/
-cp /payload/esp/loader/entries/ubuntu-2604.conf /esp/loader/entries/
-cp /payload/esp/EFI/BOOT/systemd-bootaa64.efi /esp/EFI/BOOT/BOOTAA64.EFI
-cp /payload/esp/vmlinuz /esp/vmlinuz
+# --- ESP: write the final Ubuntu boot entry, flip default, keep rescue ---------
+mkdir -p /esp/loader/entries
+cat > /esp/loader/entries/ubuntu.conf <<'EOF'
+title Ubuntu 26.04 LTS (S10)
+linux /vmlinuz
+options root=PARTLABEL=ubuntu-root rootwait rw console=tty0 console=ttyGS0,115200n8 loglevel=4
+EOF
+cat > /esp/loader/loader.conf <<'EOF'
+timeout 3
+default ubuntu.conf
+console-mode keep
+editor no
+EOF
+cp /payload/esp/vmlinuz /esp/vmlinuz 2>/dev/null
 sync
 umount /esp
-echo "ESP populated."
-
-# --- flash U-Boot to boot partition ----------------------------------------------
-echo "flashing U-Boot to $BOOTDEV..."
-dd if=/payload/u-boot.img of=$BOOTDEV bs=4096 conv=fsync
-sync
-echo "U-Boot flashed. Boot backup remains in recovery (/tmp was RAM — re-pull if needed)."
+echo "ESP updated: default entry = ubuntu"
 
 # --- wrap up ----------------------------------------------------------------------
 umount /mnt/proc /mnt/sys /mnt/dev 2>/dev/null
