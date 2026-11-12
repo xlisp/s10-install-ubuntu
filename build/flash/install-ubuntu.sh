@@ -129,12 +129,9 @@ ls -la "$P1" "$P2"
 # 3. Filesystems
 # ----------------------------------------------------------------------------
 $CHROOT /tmp/stage /usr/sbin/mke2fs -q -t ext4 -b 4096 -L ubuntu-root -m 1 "$P2"
-if $CHROOT /tmp/stage /usr/sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null; then
-    echo "ESP formatted as fat32"
-else
-    echo "WARN: mkfs.vfat failed, ESP will be ext4 (U-Boot can read ext4)"
-    $CHROOT /tmp/stage /usr/sbin/mke2fs -q -t ext4 -L ESP "$P1"
-fi
+# ESP as ext4: recovery mount of vfat is broken; U-Boot reads ext4 natively
+$CHROOT /tmp/stage /usr/sbin/mke2fs -q -t ext4 -b 4096 -L ESP "$P1"
+echo "both filesystems created (ext4)"
 
 # ----------------------------------------------------------------------------
 # 4. Mount and populate rootfs
@@ -159,16 +156,26 @@ echo "codename: $CODENAME"
 # ----------------------------------------------------------------------------
 # 5. Install the init system + tooling from debs (dpkg unpack + configure)
 # ----------------------------------------------------------------------------
-$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --unpack --force-depends /tmp/debs/*.deb' 2>&1 | tail -5
+mkdir -p /tmp/mnt/proc /tmp/mnt/sys
+mount -t proc proc /tmp/mnt/proc
+mount -t sysfs sys /tmp/mnt/sys
+mount -o bind /dev /tmp/mnt/dev
+
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --unpack --force-depends /tmp/debs/*.deb' > /tmp/dpkg-unpack.log 2>&1
+tail -3 /tmp/dpkg-unpack.log
 $CHROOT /tmp/mnt /usr/sbin/ldconfig
-$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
-$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' > /tmp/dpkg-conf1.log 2>&1
+tail -3 /tmp/dpkg-conf1.log
+$CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' > /tmp/dpkg-conf2.log 2>&1
+tail -3 /tmp/dpkg-conf2.log
+grep -c "^Setting up" /tmp/dpkg-conf1.log /tmp/dpkg-conf2.log
 echo "init sanity: $(ls -la /tmp/mnt/usr/sbin/init 2>/dev/null)"
 
 # ----------------------------------------------------------------------------
 # 6. Users, enables, and final config
 # ----------------------------------------------------------------------------
 $CHROOT /tmp/mnt /bin/bash -c '
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 printf "root:ubuntu\n" | chpasswd
 id ubuntu >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo ubuntu
 printf "ubuntu:ubuntu\n" | chpasswd
@@ -190,11 +197,8 @@ ln -sf /dev/null $R/etc/systemd/system/hibernate.target
 # ----------------------------------------------------------------------------
 # 7. ESP: kernel + systemd-boot
 # ----------------------------------------------------------------------------
-if mount -t vfat "$P1" /tmp/esp_mnt 2>/dev/null; then
-    echo "ESP mounted as vfat"
-else
-    mount -t ext4 "$P1" /tmp/esp_mnt && echo "ESP mounted as ext4"
-fi
+mount -t ext4 "$P1" /tmp/esp_mnt || { echo "FATAL: cannot mount ESP"; exit 1; }
+echo "ESP mounted as ext4"
 mkdir -p /tmp/esp_mnt/EFI/BOOT /tmp/esp_mnt/loader/entries
 cp /tmp/esp/loader/loader.conf /tmp/esp_mnt/loader/
 cp /tmp/esp/loader/entries/ubuntu-2604.conf /tmp/esp_mnt/loader/entries/
@@ -209,6 +213,7 @@ ls -la /tmp/esp_mnt /tmp/esp_mnt/EFI/BOOT /tmp/esp_mnt/loader/entries
 cd /tmp
 sync
 umount /tmp/esp_mnt
+umount /tmp/mnt/proc /tmp/mnt/sys /tmp/mnt/dev 2>/dev/null
 umount /tmp/mnt
 $CHROOT /tmp/stage /usr/sbin/losetup -d "$P1" "$P2" 2>/dev/null
 
