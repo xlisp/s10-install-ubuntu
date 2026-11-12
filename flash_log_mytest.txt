@@ -1,0 +1,62 @@
+
+/Volumes/macwin/s10_system_ut_5month_beyond1lte
+❯ heimdall flash --RECOVERY lineage-19.1-20220805-recovery-beyond1lte.img
+Heimdall v1.4.2
+
+Copyright (c) 2010-2017 Benjamin Dobell, Glass Echidna
+http://www.glassechidna.com.au/
+
+This software is provided free of charge. Copying and redistribution is
+encouraged.
+
+If you appreciate this software and you would like to support future
+development please consider donating:
+http://www.glassechidna.com.au/donate/
+
+Initialising connection...
+Detecting device...
+Claiming interface...
+Setting up interface...
+
+Initialising protocol...
+Protocol initialisation successful.
+
+Beginning session...
+
+Some devices may take up to 2 minutes to respond.
+Please be patient!
+
+Session begun.
+
+Downloading device's PIT file...
+PIT file download successful.
+
+Uploading RECOVERY
+100%
+RECOVERY upload successful
+
+Ending session...
+Rebooting device...
+Releasing device interface...
+
+
+/Volumes/macwin/s10_system_ut_5month_beyond1lte 6s
+❯
+
+--------
+
+~/PyPro/s10-install-ubuntu main
+❯  fastboot flash boot ./build/flash/u-boot.img
+Sending 'boot' (928 KB)                            OKAY [  0.022s]
+Writing 'boot'                                     OKAY [  0.079s]
+Finished. Total time: 0.123s
+
+~/PyPro/s10-install-ubuntu main
+❯ fastboot flash system  ./build/flash/ubuntu-base.tar.gz
+Sending 'system' (34269 KB)                        OKAY [  0.815s]
+Writing 'system'                                   OKAY [  0.308s]
+Finished. Total time: 1.185s
+
+~/PyPro/s10-install-ubuntu main
+❯
+
