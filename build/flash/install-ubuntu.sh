@@ -13,8 +13,8 @@
 #   overlay/             rootfs config overlay (etc/, usr/local/sbin/)
 #   esp/                 vmlinuz + EFI/BOOT + loader.conf + entries/
 #
-# Everything runs from a RAM staging copy so the same binaries that will live
-# on the device do the partitioning/formatting (sfdisk, mke2fs, mkfs.vfat).
+# NOTE: recovery /dev has no by-name links, no loop nodes and bind mounts are
+# unreliable across adb sessions — everything needed is created with mknod.
 # ============================================================================
 set -x
 
@@ -30,20 +30,24 @@ else
 fi
 echo "using CHROOT=$CHROOT"
 
-UD=/dev/block/by-name/userdata
-if [ ! -e "$UD" ]; then
-    # recovery devtmpfs may lack /dev/block entirely: build the node from sysfs
-    mkdir -p /dev/block/by-name
-    mm=$(cat /sys/class/block/sda31/dev 2>/dev/null)
+mknod_from_sysfs() {  # $1=node path, $2=sysfs block name
+    mm=$(cat /sys/class/block/$2/dev 2>/dev/null) || return 1
     major=$(printf '%s' "$mm" | cut -d: -f1)
     minor=$(printf '%s' "$mm" | cut -d: -f2)
-    [ -e /dev/block/sda31 ] || mknod /dev/block/sda31 b "$major" "$minor"
-    ln -sf /dev/block/sda31 "$UD"
-    echo "created fallback node sda31 ($major:$minor)"
-fi
-[ -e "$UD" ] || { echo "FATAL: $UD not found"; exit 1; }
-UDPATH=$(readlink -f "$UD")
-echo "userdata block: $UDPATH"
+    mkdir -p "$(dirname "$1")"
+    [ -e "$1" ] || mknod "$1" b "$major" "$minor"
+}
+
+UD=/dev/block/by-name/userdata
+mkdir -p /dev/block/by-name
+mknod_from_sysfs /dev/block/sda31 sda31 || { echo "FATAL: sda31 missing from sysfs"; exit 1; }
+ln -sf /dev/block/sda31 "$UD"
+UDPATH=/dev/block/sda31
+echo "userdata block: $UDPATH ($(cat /sys/class/block/sda31/dev))"
+
+# loop nodes for recovery /dev
+[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
+for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
 
 # check pushed payload
 for f in /tmp/ubuntu-base.tar.gz /tmp/modules.tar.gz /tmp/overlay /tmp/esp /tmp/debs; do
@@ -54,61 +58,58 @@ done
 # 1. RAM staging: extract ubuntu-base, unpack fdisk+dosfstools debs into it
 # ----------------------------------------------------------------------------
 rm -rf /tmp/stage /tmp/mnt /tmp/esp_mnt
-mkdir -p /tmp/stage/proc /tmp/stage/sys /tmp/stage/dev /tmp/mnt /tmp/esp_mnt
+mkdir -p /tmp/stage/dev/block /tmp/mnt /tmp/esp_mnt
 cd /tmp/stage
 tar xzf /tmp/ubuntu-base.tar.gz
 echo "base extracted: $(ls /tmp/stage | wc -l) entries"
 
 mkdir -p /tmp/stage/debs
 cp /tmp/debs/*.deb /tmp/stage/debs/
-mount -t proc proc /tmp/stage/proc 2>/dev/null
-mount -t sysfs sys /tmp/stage/sys 2>/dev/null
-mount -o bind /dev /tmp/stage/dev 2>/dev/null
+# chroot device nodes: only what sfdisk/mke2fs/losetup need
+mknod /tmp/stage/dev/block/sda31 b 259 15 2>/dev/null
+mknod /tmp/stage/dev/loop-control c 10 237 2>/dev/null
+for i in 0 1 2 3 4 5 6 7; do mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null; done
 
-# loop device nodes: recovery devtmpfs does not pre-create them
-[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
-for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
-# ensure the chroot sees the same nodes (create inside stage/dev too, bind may lag)
-for i in 0 1 2 3 4 5 6 7; do
-    [ -e /tmp/stage/dev/loop$i ] || cp -a /dev/loop$i /tmp/stage/dev/loop$i 2>/dev/null
-    [ -e /tmp/stage/dev/loop$i ] || mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null
-done
-[ -e /tmp/stage/dev/loop-control ] || cp -a /dev/loop-control /tmp/stage/dev/loop-control 2>/dev/null
-[ -e /tmp/stage/dev/loop-control ] || mknod /tmp/stage/dev/loop-control c 10 237 2>/dev/null
-
-DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/stage /bin/sh -c \
+$CHROOT /tmp/stage /bin/sh -c \
     'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive \
-     dpkg --unpack --force-depends /debs/fdisk*.deb /debs/libfdisk*.deb /debs/libsmartcols*.deb /debs/dosfstools*.deb' 2>&1 | tail -3
+     dpkg --unpack --force-depends /debs/libsmartcols*.deb /debs/libreadline8t64*.deb /debs/libfdisk*.deb /debs/fdisk*.deb /debs/dosfstools*.deb' 2>&1 | tail -3
 $CHROOT /tmp/stage /usr/sbin/ldconfig
 echo "staging tools ready:"
-$CHROOT /tmp/stage /usr/bin/which sfdisk mkfs.vfat mke2fs losetup blockdev
+$CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin; which sfdisk mkfs.vfat mke2fs losetup blockdev wipefs'
 
 # ----------------------------------------------------------------------------
 # 2. Partition userdata as a disk: GPT [esp 512MiB | ubuntu-root rest]
 # ----------------------------------------------------------------------------
-printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type=linux\n' > /tmp/stage/parts.sfdisk
 $CHROOT /tmp/stage /usr/sbin/wipefs -a "$UDPATH" 2>/dev/null
-$CHROOT /tmp/stage /usr/bin/sfdisk --force "$UDPATH" /parts.sfdisk
+printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type=linux\n' > /tmp/stage/parts.sfdisk
+$CHROOT /tmp/stage /usr/sbin/sfdisk --force "$UDPATH" /parts.sfdisk || { echo "FATAL: sfdisk failed"; exit 1; }
 
-# expose partitions via loop device (works regardless of nested-partition quirks)
+# expose partitions via loop device (kernel nested-partition scan is unreliable
+# in the recovery kernel, and unnecessary — we only access them via the loop)
 LO=$($CHROOT /tmp/stage /usr/sbin/losetup -P -f --show "$UDPATH")
 echo "loop device: $LO"
-$CHROOT /tmp/stage /usr/sbin/blockdev --rereadpt "$LO"
 sleep 1
-ls -la ${LO}p1 ${LO}p2
-P1="${LO}p1"
-P2="${LO}p2"
+for i in 1 2 3 4 5; do
+    [ -e "/dev/$(basename "$LO")p1" ] && break
+    sleep 1
+done
+# mirror partition nodes into the chroot's static /dev
+cp -a /dev/$(basename "$LO")p1 /tmp/stage/dev/$(basename "$LO")p1 2>/dev/null
+cp -a /dev/$(basename "$LO")p2 /tmp/stage/dev/$(basename "$LO")p2 2>/dev/null
+P1="/dev/$(basename "$LO")p1"
+P2="/dev/$(basename "$LO")p2"
+ls -la "$P1" "$P2"
 [ -e "$P1" ] && [ -e "$P2" ] || { echo "FATAL: loop partitions missing"; exit 1; }
 
 # ----------------------------------------------------------------------------
 # 3. Filesystems
 # ----------------------------------------------------------------------------
-$CHROOT /tmp/stage /sbin/mke2fs -q -t ext4 -b 4096 -L ubuntu-root -m 1 "$P2"
-if $CHROOT /tmp/stage /sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null; then
+$CHROOT /tmp/stage /usr/sbin/mke2fs -q -t ext4 -b 4096 -L ubuntu-root -m 1 "$P2"
+if $CHROOT /tmp/stage /usr/sbin/mkfs.vfat -F 32 -n ESP "$P1" 2>/dev/null; then
     echo "ESP formatted as fat32"
 else
     echo "WARN: mkfs.vfat failed, ESP will be ext4 (U-Boot can read ext4)"
-    $CHROOT /tmp/stage /sbin/mke2fs -q -t ext4 -L ESP "$P1"
+    $CHROOT /tmp/stage /usr/sbin/mke2fs -q -t ext4 -L ESP "$P1"
 fi
 
 # ----------------------------------------------------------------------------
@@ -134,16 +135,11 @@ echo "codename: $CODENAME"
 # ----------------------------------------------------------------------------
 # 5. Install the init system + tooling from debs (dpkg unpack + configure)
 # ----------------------------------------------------------------------------
-mkdir -p /tmp/mnt/proc /tmp/mnt/sys
-mount -t proc proc /tmp/mnt/proc 2>/dev/null
-mount -t sysfs sys /tmp/mnt/sys 2>/dev/null
-mount -o bind /dev /tmp/mnt/dev 2>/dev/null
-
 $CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --unpack --force-depends /tmp/debs/*.deb' 2>&1 | tail -5
 $CHROOT /tmp/mnt /usr/sbin/ldconfig
 $CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
 $CHROOT /tmp/mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' 2>&1 | tail -5
-echo "init sanity: $(ls -la /tmp/mnt/sbin/init /tmp/mnt/usr/sbin/init 2>/dev/null)"
+echo "init sanity: $(ls -la /tmp/mnt/usr/sbin/init 2>/dev/null)"
 
 # ----------------------------------------------------------------------------
 # 6. Users, enables, and final config
@@ -189,10 +185,8 @@ ls -la /tmp/esp_mnt /tmp/esp_mnt/EFI/BOOT /tmp/esp_mnt/loader/entries
 cd /tmp
 sync
 umount /tmp/esp_mnt
-umount /tmp/mnt/proc /tmp/mnt/sys /tmp/mnt/dev 2>/dev/null
 umount /tmp/mnt
 $CHROOT /tmp/stage /usr/sbin/losetup -d "$LO" 2>/dev/null
-umount /tmp/stage/proc /tmp/stage/sys /tmp/stage/dev 2>/dev/null
 
 echo "================================================================"
 echo "ROOTFS DONE. Next: flash U-Boot to boot partition:"
