@@ -19,7 +19,7 @@ mknod dev/block/sda31 b 259 15 2>/dev/null
 cp /tmp/BOOTAA64.EFI /tmp/vmlinuz /tmp/initramfs-rescue.gz .
 
 printf 'timeout 3\ndefault rescue.conf\nconsole-mode keep\neditor no\n' > cfg/loader.conf
-printf 'title Rescue installer (S10 Ubuntu)\nlinux /vmlinuz\ninitrd /initramfs-rescue.gz\noptions console=tty0 loglevel=7\n' > cfg/rescue.conf
+printf 'title Rescue installer (S10 Ubuntu)\nlinux /vmlinuz\ninitrd /initramfs-rescue.gz\noptions console=tty0 loglevel=7 panic=30\n' > cfg/rescue.conf
 printf 'title Ubuntu 26.04 LTS (S10)\nlinux /vmlinuz\noptions root=PARTLABEL=ubuntu-root rootwait rw console=tty0 console=ttyGS0,115200n8 loglevel=4\n' > cfg/ubuntu.conf
 
 printf 'mkdir /EFI\nmkdir /EFI/BOOT\nwrite /BOOTAA64.EFI /EFI/BOOT/BOOTAA64.EFI\nmkdir /loader\nmkdir /loader/entries\nwrite /cfg/loader.conf /loader/loader.conf\nwrite /cfg/rescue.conf /loader/entries/rescue.conf\nwrite /cfg/ubuntu.conf /loader/entries/ubuntu.conf\nwrite /vmlinuz /vmlinuz\nwrite /initramfs-rescue.gz /initramfs-rescue.gz\nquit\n' > debugfs.cmds

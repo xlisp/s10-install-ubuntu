@@ -11,10 +11,13 @@
 # ============================================================================
 BB=/bin/busybox
 $BB mkdir -p /proc /sys /dev /tmp /mnt /esp /payload
+# bootstrap order matters: devtmpfs+proc must exist BEFORE busybox --install
+# (which reads /proc/self/exe), otherwise no applet symlinks are created and
+# every bare command fails, init exits, kernel panics.
+$BB mount -t devtmpfs devtmpfs /dev
+$BB mount -t proc proc /proc
 $BB --install -s /bin
 exec </dev/console >/dev/console 2>&1
-mount -t devtmpfs devtmpfs /dev
-mount -t proc proc /proc
 mount -t sysfs sys /sys
 echo "=========================================================="
 echo " S10 Ubuntu rescue (mainline $(uname -r)) — $(date)"
@@ -75,6 +78,7 @@ mount -t ext4 /dev/sda31p2 /mnt || { echo "FATAL: mount root"; exec /bin/sh; }
 mkdir -p /mnt/boot/efi
 mount -t ext4 /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
 echo "filesystems ready"
+dmesg > /esp/boot-dmesg.txt 2>/dev/null || true
 
 # --- payload from staging ------------------------------------------------------
 echo "reading payload from staging region ($PAYLOAD_SECTORS sectors)..."
