@@ -47,7 +47,7 @@ echo "userdata block: $UDPATH ($(cat /sys/class/block/sda31/dev))"
 
 # loop nodes for recovery /dev
 [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
-for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
+for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
 
 # check pushed payload
 for f in /tmp/ubuntu-base.tar.gz /tmp/modules.tar.gz /tmp/overlay /tmp/esp /tmp/debs; do
@@ -68,7 +68,7 @@ cp /tmp/debs/*.deb /tmp/stage/debs/
 # chroot device nodes: only what sfdisk/mke2fs/losetup need
 mknod /tmp/stage/dev/block/sda31 b 259 15 2>/dev/null
 mknod /tmp/stage/dev/loop-control c 10 237 2>/dev/null
-for i in 0 1 2 3 4 5 6 7; do mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null; done
+for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null; done
 
 $CHROOT /tmp/stage /bin/sh -c \
     'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive \
@@ -97,13 +97,20 @@ set -- $(printf '%s\n' "$TABLE" | grep 'sda31p2 ')
 P2START=$2; P2SEC=$3
 [ -n "$P1START" ] && [ -n "$P2START" ] || { echo "FATAL: cannot parse partition table"; exit 1; }
 
-# detach any stale loops on sda31 from previous runs
-$CHROOT /tmp/stage /usr/sbin/losetup -a 2>/dev/null | grep -F "($UDPATH)" | cut -d: -f1 | while read l; do
-    $CHROOT /tmp/stage /usr/sbin/losetup -d "$l" 2>/dev/null
-done
+# detach ALL stale loop attachments from previous runs (paths may be stale)
+$CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+    for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do losetup -d /dev/loop$i 2>/dev/null; done
+    losetup -a 2>/dev/null
+    true'
 
-P1=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show -o $((P1START * LSIZE)) --sizelimit $((P1SEC * LSIZE)) "$UDPATH")
-P2=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show -o $((P2START * LSIZE)) --sizelimit $((P2SEC * LSIZE)) "$UDPATH")
+MAPS=$($CHROOT /tmp/stage /bin/sh -c '
+    export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+    L1=$(losetup -f --show -o $(($1 * 4096)) --sizelimit $(($2 * 4096)) /dev/block/sda31) || exit 1
+    L2=$(losetup -f --show -o $(($3 * 4096)) --sizelimit $(($4 * 4096)) /dev/block/sda31) || { losetup -d "$L1" 2>/dev/null; exit 1; }
+    echo "$L1 $L2"
+' sh "$P1START" "$P1SEC" "$P2START" "$P2SEC")
+P1=${MAPS%% *}
+P2=${MAPS##* }
 echo "esp loop:  $P1 (offset $P1START, $P1SEC sectors)"
 echo "root loop: $P2 (offset $P2START, $P2SEC sectors)"
 ls -la "$P1" "$P2"
