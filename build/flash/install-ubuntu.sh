@@ -47,7 +47,12 @@ echo "userdata block: $UDPATH ($(cat /sys/class/block/sda31/dev))"
 
 # loop nodes for recovery /dev
 [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
-for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
+# loop driver max_part=7 -> each device reserves 8 minors (loopN = 7:N*8)
+i=0
+while [ $i -le 15 ]; do
+    [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $((i * 8))
+    i=$((i + 1))
+done
 
 # check pushed payload
 for f in /tmp/ubuntu-base.tar.gz /tmp/modules.tar.gz /tmp/overlay /tmp/esp /tmp/debs; do
@@ -68,7 +73,11 @@ cp /tmp/debs/*.deb /tmp/stage/debs/
 # chroot device nodes: only what sfdisk/mke2fs/losetup need
 mknod /tmp/stage/dev/block/sda31 b 259 15 2>/dev/null
 mknod /tmp/stage/dev/loop-control c 10 237 2>/dev/null
-for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null; done
+i=0
+while [ $i -le 15 ]; do
+    mknod /tmp/stage/dev/loop$i b 7 $((i * 8)) 2>/dev/null
+    i=$((i + 1))
+done
 
 $CHROOT /tmp/stage /bin/sh -c \
     'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive \
