@@ -1,1 +1,3 @@
 build/flash/boot-stock-backup.img
+*.img
+*.gz

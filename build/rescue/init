@@ -1,0 +1,154 @@
+#!/bin/busybox sh
+# ============================================================================
+# rescue init — mainline kernel (7.2) + busybox-static
+# Boots from S-Boot via Android boot image (boot partition), installs Ubuntu:
+#   1. waits for nested partitions of userdata (mainline scans GPT-in-partition)
+#   2. formats esp + ubuntu-root (busybox mke2fs)
+#   3. reads payload blob from the staging region (tail 1GiB of userdata)
+#   4. unpacks rootfs, installs debs via chroot+dpkg, configures boot
+#   5. flashes U-Boot to boot partition, reboots
+# Debug: USB NCM gadget + telnetd on 172.16.42.1
+# ============================================================================
+BB=/bin/busybox
+$BB mkdir -p /proc /sys /dev /tmp /mnt /esp /payload
+$BB --install -s /bin
+exec </dev/console >/dev/console 2>&1
+mount -t devtmpfs devtmpfs /dev
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+echo "=========================================================="
+echo " S10 Ubuntu rescue (mainline $(uname -r)) — $(date)"
+echo "=========================================================="
+
+PAYLOAD_SECTORS=@PAYLOAD_SECTORS@
+STAGING_SKIP=28959744      # sector (4096B) offset of the staging region
+BOOTDEV=/dev/sda14
+UD=/dev/sda31
+
+# --- USB gadget (NCM) + telnetd for debugging from the Mac ------------------
+setup_gadget() {
+    mount -t configfs configfs /sys/kernel/config 2>/dev/null
+    G=/sys/kernel/config/usb_gadget/g1
+    mkdir -p $G 2>/dev/null || return 1
+    echo 0x1d6b > $G/idVendor; echo 0x0104 > $G/idProduct
+    echo 0x0300 > $G/bcdUSB
+    mkdir -p $G/strings/0x409 $G/configs/c.1
+    echo "S10-rescue" > $G/strings/0x409/product
+    echo "rescue"     > $G/configs/c.1/strings/0x409/configuration 2>/dev/null
+    mkdir -p $G/functions/ncm.usb0
+    ln -sf $G/functions/ncm.usb0 $G/configs/c.1/f1
+    UDC=$(ls /sys/class/udc 2>/dev/null | head -n1)
+    [ -n "$UDC" ] && echo "$UDC" > $G/UDC && return 0
+    return 1
+}
+if setup_gadget; then
+    sleep 2
+    ip link set usb0 up 2>/dev/null || ifconfig usb0 up 2>/dev/null
+    ip addr add 172.16.42.1/24 dev usb0 2>/dev/null || ifconfig usb0 172.16.42.1 netmask 255.255.255.0 2>/dev/null
+    telnetd -b 172.16.42.1:23 -l /bin/sh
+    echo "USB NCM up: 172.16.42.1 — telnet for debug shell"
+fi
+
+# --- wait for userdata + nested partitions -----------------------------------
+echo "waiting for $UD..."
+n=0
+while [ ! -b $UD ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
+[ -b $UD ] || { echo "FATAL: $UD never appeared"; exec /bin/sh; }
+mknod_from_sysfs() {
+    mm=$(cat /sys/class/block/$2/dev 2>/dev/null) || return 1
+    mkdir -p $(dirname $1)
+    [ -e $1 ] || mknod $1 b $(echo $mm | cut -d: -f1) $(echo $mm | cut -d: -f2)
+}
+mknod_from_sysfs $BOOTDEV sda14
+mknod_from_sysfs $UD sda31
+mknod_from_sysfs /dev/sda31p1 sda31p1
+mknod_from_sysfs /dev/sda31p2 sda31p2
+echo "GPT signature check:"
+dd if=$UD bs=1 skip=4096 count=8 2>/dev/null   # expect "EFI PART"
+echo ""
+
+# --- format -------------------------------------------------------------------
+echo "formatting ESP (ext4) and ubuntu-root (ext4)..."
+mke2fs -F -q -t ext4 -L ESP /dev/sda31p1 || { echo "FATAL: mke2fs ESP"; exec /bin/sh; }
+mke2fs -F -q -t ext4 -b 4096 -L ubuntu-root /dev/sda31p2 || { echo "FATAL: mke2fs root"; exec /bin/sh; }
+mount -t ext4 /dev/sda31p2 /mnt || { echo "FATAL: mount root"; exec /bin/sh; }
+mkdir -p /mnt/boot/efi
+mount -t ext4 /dev/sda31p1 /esp || { echo "FATAL: mount ESP"; exec /bin/sh; }
+
+# --- payload from staging ------------------------------------------------------
+echo "reading payload from staging region ($PAYLOAD_SECTORS sectors)..."
+dd if=$UD of=/tmp/payload.tar.gz bs=4096 skip=$STAGING_SKIP count=$PAYLOAD_SECTORS 2>/dev/null
+ls -la /tmp/payload.tar.gz
+mkdir -p /payload && cd /payload
+tar xzf /tmp/payload.tar.gz || { echo "FATAL: payload extract"; exec /bin/sh; }
+echo "payload files:"; ls /payload
+rm -f /tmp/payload.tar.gz
+
+# --- rootfs ---------------------------------------------------------------------
+cd /mnt
+tar xzf /payload/ubuntu-base.tar.gz
+mkdir -p /mnt/tmp/debs /mnt/usr/lib
+cp /payload/debs/*.deb /mnt/tmp/debs/
+tar xzf /payload/modules.tar.gz -C /mnt/usr/lib
+cp -a /payload/overlay/. /mnt/
+CODENAME=$(grep -E "^VERSION_CODENAME=" /mnt/usr/lib/os-release | cut -d= -f2)
+sed -i "s/@CODENAME@/$CODENAME/g" /mnt/etc/apt/sources.list.d/ubuntu.sources
+echo "codename: $CODENAME"
+
+mount -t proc proc /mnt/proc
+mount -t sysfs sys /mnt/sys
+mount -o bind /dev /mnt/dev
+
+chroot /mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --unpack --force-depends /tmp/debs/*.deb' > /mnt/tmp/dpkg-unpack.log 2>&1
+tail -2 /mnt/tmp/dpkg-unpack.log
+chroot /mnt /usr/sbin/ldconfig
+chroot /mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' > /mnt/tmp/dpkg-conf.log 2>&1
+tail -2 /mnt/tmp/dpkg-conf.log
+chroot /mnt /bin/sh -c 'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive dpkg --configure -a' > /mnt/tmp/dpkg-conf2.log 2>&1
+tail -2 /mnt/tmp/dpkg-conf2.log
+echo "init sanity: $(ls -la /mnt/usr/sbin/init 2>/dev/null)"
+
+chroot /mnt /bin/bash -c '
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+printf "root:ubuntu\n" | chpasswd
+id ubuntu >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo ubuntu
+printf "ubuntu:ubuntu\n" | chpasswd
+'
+R=/mnt
+mkdir -p $R/etc/systemd/system/multi-user.target.wants $R/etc/systemd/system/getty.target.wants
+W=$R/etc/systemd/system/multi-user.target.wants
+ln -sf /etc/systemd/system/usb-gadget.service $W/usb-gadget.service
+ln -sf /etc/systemd/system/firstboot.service  $W/firstboot.service
+ln -sf /usr/lib/systemd/system/systemd-networkd.service $W/systemd-networkd.service
+ln -sf /usr/lib/systemd/system/serial-getty@.service $R/etc/systemd/system/getty.target.wants/serial-getty@ttyGS0.service
+ln -sf /usr/lib/systemd/system/getty@.service $R/etc/systemd/system/getty.target.wants/getty@tty1.service
+ln -sf /dev/null $R/etc/systemd/system/sleep.target
+ln -sf /dev/null $R/etc/systemd/system/suspend.target
+ln -sf /dev/null $R/etc/systemd/system/hibernate.target
+
+# --- ESP ------------------------------------------------------------------------
+cp /payload/esp/loader/loader.conf /esp/loader/ 2>/dev/null || mkdir -p /esp/loader /esp/loader/entries /esp/EFI/BOOT
+cp /payload/esp/loader/loader.conf /esp/loader/
+cp /payload/esp/loader/entries/ubuntu-2604.conf /esp/loader/entries/
+cp /payload/esp/EFI/BOOT/systemd-bootaa64.efi /esp/EFI/BOOT/BOOTAA64.EFI
+cp /payload/esp/vmlinuz /esp/vmlinuz
+sync
+umount /esp
+echo "ESP populated."
+
+# --- flash U-Boot to boot partition ----------------------------------------------
+echo "flashing U-Boot to $BOOTDEV..."
+dd if=/payload/u-boot.img of=$BOOTDEV bs=4096 conv=fsync
+sync
+echo "U-Boot flashed. Boot backup remains in recovery (/tmp was RAM — re-pull if needed)."
+
+# --- wrap up ----------------------------------------------------------------------
+umount /mnt/proc /mnt/sys /mnt/dev 2>/dev/null
+umount /mnt
+sync
+echo "=========================================================="
+echo " INSTALL COMPLETE — rebooting into U-Boot -> Ubuntu"
+echo " (telnet debug shell still available for 30s)"
+echo "=========================================================="
+sleep 30
+reboot -f
