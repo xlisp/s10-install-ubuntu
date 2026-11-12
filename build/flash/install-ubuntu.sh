@@ -84,22 +84,30 @@ $CHROOT /tmp/stage /usr/sbin/wipefs -a "$UDPATH" 2>/dev/null
 printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type=linux\n' > /tmp/stage/parts.sfdisk
 $CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin; sfdisk --force /dev/block/sda31 < /parts.sfdisk' || { echo "FATAL: sfdisk failed"; exit 1; }
 
-# expose partitions via loop device (kernel nested-partition scan is unreliable
-# in the recovery kernel, and unnecessary — we only access them via the loop)
-LO=$($CHROOT /tmp/stage /usr/sbin/losetup -P -f --show "$UDPATH")
-echo "loop device: $LO"
-sleep 1
-for i in 1 2 3 4 5; do
-    [ -e "/dev/$(basename "$LO")p1" ] && break
-    sleep 1
+# Map the two partitions as standalone loop devices via byte offsets —
+# the recovery kernel has no loop partition-scan support (max_part=0).
+# Parse start/sector counts from the sfdisk table we just wrote.
+LSIZE=$(cat /sys/class/block/sda/queue/logical_block_size 2>/dev/null || echo 4096)
+echo "logical block size: $LSIZE"
+TABLE=$($CHROOT /tmp/stage /usr/sbin/sfdisk -l -o Device,Start,Sectors "$UDPATH" 2>/dev/null)
+echo "$TABLE"
+P1START=$(printf '%s\n' "$TABLE" | awk '/p1/{print $2}')
+P1SEC=$(printf '%s\n' "$TABLE" | awk '/p1/{print $3}')
+P2START=$(printf '%s\n' "$TABLE" | awk '/p2/{print $2}')
+P2SEC=$(printf '%s\n' "$TABLE" | awk '/p2/{print $3}')
+[ -n "$P1START" ] && [ -n "$P2START" ] || { echo "FATAL: cannot parse partition table"; exit 1; }
+
+# detach any stale loops on sda31 from previous runs
+$CHROOT /tmp/stage /usr/sbin/losetup -a 2>/dev/null | grep -F "($UDPATH)" | cut -d: -f1 | while read l; do
+    $CHROOT /tmp/stage /usr/sbin/losetup -d "$l" 2>/dev/null
 done
-# mirror partition nodes into the chroot's static /dev
-cp -a /dev/$(basename "$LO")p1 /tmp/stage/dev/$(basename "$LO")p1 2>/dev/null
-cp -a /dev/$(basename "$LO")p2 /tmp/stage/dev/$(basename "$LO")p2 2>/dev/null
-P1="/dev/$(basename "$LO")p1"
-P2="/dev/$(basename "$LO")p2"
+
+P1=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show -o $((P1START * LSIZE)) --sizelimit $((P1SEC * LSIZE)) "$UDPATH")
+P2=$($CHROOT /tmp/stage /usr/sbin/losetup -f --show -o $((P2START * LSIZE)) --sizelimit $((P2SEC * LSIZE)) "$UDPATH")
+echo "esp loop:  $P1 (offset $P1START, $P1SEC sectors)"
+echo "root loop: $P2 (offset $P2START, $P2SEC sectors)"
 ls -la "$P1" "$P2"
-[ -e "$P1" ] && [ -e "$P2" ] || { echo "FATAL: loop partitions missing"; exit 1; }
+[ -e "$P1" ] && [ -e "$P2" ] || { echo "FATAL: loop maps missing"; exit 1; }
 
 # ----------------------------------------------------------------------------
 # 3. Filesystems
@@ -186,7 +194,7 @@ cd /tmp
 sync
 umount /tmp/esp_mnt
 umount /tmp/mnt
-$CHROOT /tmp/stage /usr/sbin/losetup -d "$LO" 2>/dev/null
+$CHROOT /tmp/stage /usr/sbin/losetup -d "$P1" "$P2" 2>/dev/null
 
 echo "================================================================"
 echo "ROOTFS DONE. Next: flash U-Boot to boot partition:"
