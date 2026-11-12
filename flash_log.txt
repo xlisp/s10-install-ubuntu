@@ -1,0 +1,51 @@
+
+~/PyPro/s10-install-ubuntu main
+❯ cd build/flash && ./final-flash.sh
+
+== 1. push payload files ==
+staging-payload.tar.gz: 1 file pushed,... 30.8 MB/s (102167375 bytes in 3.162s)
+ubuntu-base.tar.gz: 1 file pushed, 0 s.... 31.8 MB/s (35092106 bytes in 1.052s)
+../assets/vmlinuz: 1 file pushed, 0 sk.... 59.7 MB/s (36835840 bytes in 0.589s)
+../assets/esp/EFI/BOOT/systemd-bootaa6...ped. 36.5 MB/s (93696 bytes in 0.002s)
+initramfs-rescue.gz: 1 file pushed, 0 ...d. 63.9 MB/s (1864368 bytes in 0.028s)
+== 2. run device-side staging ==
+twrp-stage.sh: 1 file pushed, 0 skipped. 4.5 MB/s (4314 bytes in 0.001s)
+=== GPT (expect EFI PART):
++ echo '=== GPT (expect EFI PART):'
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=1' 'skip=4096' 'count=8'
++ xxd
+00000000: 0800 0000 0900 0000                      ........
++ echo '=== ESP ext4 magic (expect 53 ef):'
+=== ESP ext4 magic (expect 53 ef):
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=1' 'skip=1049656' 'count=2'
++ xxd
+00000000: 53ef                                     S.
++ echo '=== staging gzip magic (expect 1f 8b):'
+=== staging gzip magic (expect 1f 8b):
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=4096' 'skip=28959744' 'count=1'
++ head -c 2
++ xxd
+00000000: 1f8b                                     ..
++ rm -rf /tmp/stage
+===================================================================
+ STAGING + ESP DONE. Rebooting — U-Boot will boot the rescue
++ echo '==================================================================='
++ echo ' STAGING + ESP DONE. Rebooting — U-Boot will boot the rescue'
++ echo ' installer (default entry), which installs Ubuntu, then flips'
+ installer (default entry), which installs Ubuntu, then flips
+ the default boot entry to Ubuntu and reboots again.
++ echo ' the default boot entry to Ubuntu and reboots again.'
++ echo '==================================================================='
+===================================================================
+== 3. reboot into U-Boot -> rescue installer ==
+Rebooted. The rescue installer runs on-screen (and via telnet on
+172.16.42.1 once its USB gadget comes up). When it finishes it reboots
+into Ubuntu automatically. Watch: nc/telnet 172.16.42.1 after setting
+the Mac's USB interface to 172.16.42.2/24.
+
+~/PyPro/s10-install-ubuntu/build/flash main 14s
+❯
+
