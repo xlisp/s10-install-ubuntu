@@ -32,6 +32,8 @@ SEEDS = [
     "locales",
     "console-setup",
     "adduser",
+    "fdisk",
+    "dosfstools",
     "apt-utils",
     "software-properties-common",  # for do-release-upgrade / add-apt-repo later
 ]
