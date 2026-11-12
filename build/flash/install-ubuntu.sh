@@ -82,7 +82,7 @@ $CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin; which 
 # ----------------------------------------------------------------------------
 $CHROOT /tmp/stage /usr/sbin/wipefs -a "$UDPATH" 2>/dev/null
 printf 'label: gpt\nname="esp", size=512MiB, type=uefi\nname="ubuntu-root", type=linux\n' > /tmp/stage/parts.sfdisk
-$CHROOT /tmp/stage /usr/sbin/sfdisk --force "$UDPATH" /parts.sfdisk || { echo "FATAL: sfdisk failed"; exit 1; }
+$CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin; sfdisk --force /dev/block/sda31 < /parts.sfdisk' || { echo "FATAL: sfdisk failed"; exit 1; }
 
 # expose partitions via loop device (kernel nested-partition scan is unreliable
 # in the recovery kernel, and unnecessary — we only access them via the loop)
