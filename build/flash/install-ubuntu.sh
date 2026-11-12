@@ -46,6 +46,14 @@ UDPATH=/dev/block/sda31
 echo "userdata block: $UDPATH ($(cat /sys/class/block/sda31/dev))"
 
 # loop nodes for recovery /dev
+for n in null zero random urandom; do
+    case $n in
+        null)   [ -e /dev/null ]    || mknod /dev/null c 1 3 ;;
+        zero)   [ -e /dev/zero ]    || mknod /dev/zero c 1 5 ;;
+        random) [ -e /dev/random ]  || mknod /dev/random c 1 8 ;;
+        urandom) [ -e /dev/urandom ] || mknod /dev/urandom c 1 9 ;;
+    esac
+done
 [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
 # loop driver max_part=7 -> each device reserves 8 minors (loopN = 7:N*8)
 i=0
@@ -115,7 +123,9 @@ $CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 MAPS=$($CHROOT /tmp/stage /bin/sh -c '
     export PATH=/usr/sbin:/usr/bin:/sbin:/bin
     L1=$(losetup -f --show -o $(($1 * 4096)) --sizelimit $(($2 * 4096)) /dev/block/sda31) || exit 1
+    dd if=/dev/zero of="$L1" bs=4096 count=8 2>/dev/null || { echo "verify-fail $L1"; losetup -d "$L1" 2>/dev/null; exit 2; }
     L2=$(losetup -f --show -o $(($3 * 4096)) --sizelimit $(($4 * 4096)) /dev/block/sda31) || { losetup -d "$L1" 2>/dev/null; exit 1; }
+    dd if=/dev/zero of="$L2" bs=4096 count=8 2>/dev/null || { echo "verify-fail $L2"; losetup -d "$L1" "$L2" 2>/dev/null; exit 2; }
     echo "$L1 $L2"
 ' sh "$P1START" "$P1SEC" "$P2START" "$P2SEC")
 P1=${MAPS%% *}
