@@ -120,12 +120,16 @@ $CHROOT /tmp/stage /bin/sh -c 'export PATH=/usr/sbin:/usr/bin:/sbin:/bin
     losetup -a 2>/dev/null
     true'
 
+# chroot /dev needs null/zero for dd verification and mkfs
+mknod /tmp/stage/dev/null c 1 3 2>/dev/null
+mknod /tmp/stage/dev/zero c 1 5 2>/dev/null
+mknod /tmp/stage/dev/random c 1 8 2>/dev/null
+mknod /tmp/stage/dev/urandom c 1 9 2>/dev/null
+
 MAPS=$($CHROOT /tmp/stage /bin/sh -c '
     export PATH=/usr/sbin:/usr/bin:/sbin:/bin
     L1=$(losetup -f --show -o $(($1 * 4096)) --sizelimit $(($2 * 4096)) /dev/block/sda31) || exit 1
-    dd if=/dev/zero of="$L1" bs=4096 count=8 2>/dev/null || { echo "verify-fail $L1"; losetup -d "$L1" 2>/dev/null; exit 2; }
     L2=$(losetup -f --show -o $(($3 * 4096)) --sizelimit $(($4 * 4096)) /dev/block/sda31) || { losetup -d "$L1" 2>/dev/null; exit 1; }
-    dd if=/dev/zero of="$L2" bs=4096 count=8 2>/dev/null || { echo "verify-fail $L2"; losetup -d "$L1" "$L2" 2>/dev/null; exit 2; }
     echo "$L1 $L2"
 ' sh "$P1START" "$P1SEC" "$P2START" "$P2SEC")
 P1=${MAPS%% *}
@@ -134,6 +138,11 @@ echo "esp loop:  $P1 (offset $P1START, $P1SEC sectors)"
 echo "root loop: $P2 (offset $P2START, $P2SEC sectors)"
 ls -la "$P1" "$P2"
 [ -e "$P1" ] && [ -e "$P2" ] || { echo "FATAL: loop maps missing"; exit 1; }
+# NOTE: do NOT use the chroot's dd for verification — Ubuntu 26.04 ships the
+# Rust coreutils whose dd panics under this recovery kernel. Use toybox dd.
+dd if=/dev/zero of="$P1" bs=4096 count=8 2>/dev/null || { echo "FATAL: $P1 not writable (reboot recovery to clear stale loop state)"; exit 1; }
+dd if=/dev/zero of="$P2" bs=4096 count=8 2>/dev/null || { echo "FATAL: $P2 not writable"; exit 1; }
+echo "loop write verification OK"
 
 # ----------------------------------------------------------------------------
 # 3. Filesystems
