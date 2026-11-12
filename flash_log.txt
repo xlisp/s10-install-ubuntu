@@ -1,5 +1,55 @@
 
 ~/PyPro/s10-install-ubuntu main
+❯ fg recovery.img
+./build/flash/recovery.img
+
+~/PyPro/s10-install-ubuntu main
+❯ heimdall flash --RECOVERY ./build/flash/recovery.img
+Heimdall v1.4.2
+
+Copyright (c) 2010-2017 Benjamin Dobell, Glass Echidna
+http://www.glassechidna.com.au/
+
+This software is provided free of charge. Copying and redistribution is
+encouraged.
+
+If you appreciate this software and you would like to support future
+development please consider donating:
+http://www.glassechidna.com.au/donate/
+
+Initialising connection...
+Detecting device...
+Claiming interface...
+Setting up interface...
+
+Initialising protocol...
+Protocol initialisation successful.
+
+Beginning session...
+
+Some devices may take up to 2 minutes to respond.
+Please be patient!
+
+Session begun.
+
+Downloading device's PIT file...
+PIT file download successful.
+
+Uploading RECOVERY
+100%
+RECOVERY upload successful
+
+Ending session...
+Rebooting device...
+Releasing device interface...
+
+
+~/PyPro/s10-install-ubuntu main 7s
+❯
+
+---
+
+~/PyPro/s10-install-ubuntu main
 ❯ cd build/flash && ./final-flash.sh
 
 == 1. push payload files ==
