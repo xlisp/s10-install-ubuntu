@@ -91,10 +91,10 @@ LSIZE=$(cat /sys/class/block/sda/queue/logical_block_size 2>/dev/null || echo 40
 echo "logical block size: $LSIZE"
 TABLE=$($CHROOT /tmp/stage /usr/sbin/sfdisk -l -o Device,Start,Sectors "$UDPATH" 2>/dev/null)
 echo "$TABLE"
-P1START=$(printf '%s\n' "$TABLE" | awk '/p1/{print $2}')
-P1SEC=$(printf '%s\n' "$TABLE" | awk '/p1/{print $3}')
-P2START=$(printf '%s\n' "$TABLE" | awk '/p2/{print $2}')
-P2SEC=$(printf '%s\n' "$TABLE" | awk '/p2/{print $3}')
+set -- $(printf '%s\n' "$TABLE" | grep 'sda31p1 ')
+P1START=$2; P1SEC=$3
+set -- $(printf '%s\n' "$TABLE" | grep 'sda31p2 ')
+P2START=$2; P2SEC=$3
 [ -n "$P1START" ] && [ -n "$P2START" ] || { echo "FATAL: cannot parse partition table"; exit 1; }
 
 # detach any stale loops on sda31 from previous runs
