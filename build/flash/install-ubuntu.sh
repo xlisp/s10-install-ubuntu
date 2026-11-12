@@ -31,6 +31,16 @@ fi
 echo "using CHROOT=$CHROOT"
 
 UD=/dev/block/by-name/userdata
+if [ ! -e "$UD" ]; then
+    # recovery devtmpfs may lack /dev/block entirely: build the node from sysfs
+    mkdir -p /dev/block/by-name
+    mm=$(cat /sys/class/block/sda31/dev 2>/dev/null)
+    major=$(printf '%s' "$mm" | cut -d: -f1)
+    minor=$(printf '%s' "$mm" | cut -d: -f2)
+    [ -e /dev/block/sda31 ] || mknod /dev/block/sda31 b "$major" "$minor"
+    ln -sf /dev/block/sda31 "$UD"
+    echo "created fallback node sda31 ($major:$minor)"
+fi
 [ -e "$UD" ] || { echo "FATAL: $UD not found"; exit 1; }
 UDPATH=$(readlink -f "$UD")
 echo "userdata block: $UDPATH"
@@ -59,10 +69,12 @@ mount -o bind /dev /tmp/stage/dev 2>/dev/null
 [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
 for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i; done
 # ensure the chroot sees the same nodes (create inside stage/dev too, bind may lag)
-for f in loop-control loop0 loop1 loop2 loop3 loop4 loop5 loop6 loop7; do
-    [ -e /tmp/stage/dev/$f ] || cp -a /dev/$f /tmp/stage/dev/$f 2>/dev/null || mknod /tmp/stage/dev/$f $(case $f in loop-control) echo c 10 237;; *) echo b 7 ${f#loop};; esac) 2>/dev/null
+for i in 0 1 2 3 4 5 6 7; do
+    [ -e /tmp/stage/dev/loop$i ] || cp -a /dev/loop$i /tmp/stage/dev/loop$i 2>/dev/null
+    [ -e /tmp/stage/dev/loop$i ] || mknod /tmp/stage/dev/loop$i b 7 $i 2>/dev/null
 done
-ls -la /tmp/stage/dev/loop* /tmp/stage/dev/loop-control 2>/dev/null | head -4
+[ -e /tmp/stage/dev/loop-control ] || cp -a /dev/loop-control /tmp/stage/dev/loop-control 2>/dev/null
+[ -e /tmp/stage/dev/loop-control ] || mknod /tmp/stage/dev/loop-control c 10 237 2>/dev/null
 
 DEBIAN_FRONTEND=noninteractive $CHROOT /tmp/stage /bin/sh -c \
     'PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive \
