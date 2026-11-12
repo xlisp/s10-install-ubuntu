@@ -1,0 +1,12 @@
+[Unit]
+Description=USB Gadget (NCM network + ACM serial console)
+After=systemd-modules-load.service
+Before=systemd-networkd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/usb-gadget-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -41,11 +41,11 @@ def main() -> None:
     header += struct.pack("<I", TAGS_ADDR)
     header += struct.pack("<I", PAGE_SIZE)
     header += struct.pack("<I", 0)  # dt_size
-    header += b"\x00" * (8 * 4)  # unused[8]
+    header += b"\x00" * 8  # unused[2]
     header += b"\x00" * 16  # name
     header += b"\x00" * 512  # cmdline
     header += b"\x00" * 8  # id
-    assert len(header) == 8 + 10 * 4 + 32 + 16 + 512 + 8, len(header)
+    assert len(header) == 8 + 9 * 4 + 8 + 16 + 512 + 8, len(header)
 
     img = pad(header, PAGE_SIZE) + pad(kernel)
     with open(args.out, "wb") as f:

@@ -161,6 +161,7 @@ ls -la /tmp/esp_mnt /tmp/esp_mnt/EFI/BOOT /tmp/esp_mnt/loader/entries
 # ----------------------------------------------------------------------------
 # 8. Wrap up
 # ----------------------------------------------------------------------------
+cd /tmp
 sync
 umount /tmp/esp_mnt
 umount /tmp/mnt/proc /tmp/mnt/sys /tmp/mnt/dev 2>/dev/null

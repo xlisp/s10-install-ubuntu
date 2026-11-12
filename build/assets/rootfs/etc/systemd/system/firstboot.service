@@ -1,0 +1,11 @@
+[Unit]
+Description=One-time first boot setup
+ConditionPathExists=!/var/lib/firstboot-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/firstboot.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

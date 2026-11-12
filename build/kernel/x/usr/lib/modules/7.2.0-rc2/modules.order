@@ -1,0 +1,3 @@
+kernel/fs/efivarfs/efivarfs.ko
+kernel/drivers/tty/ttynull.ko
+kernel/net/netfilter/xt_MASQUERADE.ko
