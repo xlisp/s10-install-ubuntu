@@ -60,3 +60,14 @@ Finished. Total time: 1.185s
 ~/PyPro/s10-install-ubuntu main
 ❯
 
+####### 让zcode编译：
+❯ ps aux | grep make
+xlisp             9899  22.2  0.0 37929632   1812 s002  S+    9:44AM   0:00.11 grep make
+xlisp             7187   0.1  0.0 37445464   3052   ??  S     9:41AM   0:00.61 gmake -C /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/out -f /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/u-boot/Makefile
+xlisp             7182   0.0  0.0 37454136    852   ??  S     9:41AM   0:00.00 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" exynos9820_defconfig 2>&1 | tail -2 && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j8 2>&1 | grep -vE "^\s*(CC|LD|AR|STRIP|OBJCOPY|MKELF|GEN| HOSTCC|HOSTLD|CHK)" | tail -6; ls -la ../out/u-boot.bin
+xlisp             7181   0.0  0.0 37418832   2132   ??  S     9:41AM   0:00.11 gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS=-I/usr/local/opt/openssl@3/include HOSTLDFLAGS=-L/usr/local/opt/openssl@3/lib -j8
+xlisp             6863   0.0  0.0 37454376   2780   ??  Ss    9:40AM   0:00.16 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" exynos9820_defconfig 2>&1 | tail -2 && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j8 2>&1 | grep -vE "^\s*(CC|LD|AR|STRIP|OBJCOPY|MKELF|GEN| HOSTCC|HOSTLD|CHK)" | tail -6; ls -la ../out/u-boot.bin
+
+~/PyPro/s10-install-ubuntu main
+❯
+
