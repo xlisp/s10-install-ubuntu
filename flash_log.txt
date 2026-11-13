@@ -99,3 +99,166 @@ the Mac's USB interface to 172.16.42.2/24.
 ~/PyPro/s10-install-ubuntu/build/flash main 14s
 ❯
 
+### ==== 手动模式：
+~/PyPro/s10-install-ubuntu main 11s
+❯ fastboot flash boot ./build/flash/u-boot.img
+Sending 'boot' (1076 KB)                           OKAY [  0.024s]
+Writing 'boot'                                     OKAY [  0.009s]
+Finished. Total time: 0.039s
+
+~/PyPro/s10-install-ubuntu main
+❯ fastboot flash boot ./build/flash/u-boot.img
+Sending 'boot' (1076 KB)                           OKAY [  0.024s]
+Writing 'boot'                                     OKAY [  0.009s]
+Finished. Total time: 0.040s
+
+~/PyPro/s10-install-ubuntu main
+❯ adb push final-package /tmp/pkg
+
+~/PyPro/s10-install-ubuntu main
+❯ cd ~/PyPro/s10-install-ubuntu
+
+
+~/PyPro/s10-install-ubuntu main
+❯ adb push final-package /tmp/pkg
+
+final-package/: 7 files pushed, 0 skipped. 34.7 MB/s (177248729 bytes in 4.865s)
+
+~/PyPro/s10-install-ubuntu main
+❯ adb shell sh /tmp/pkg/FLASH-ME.sh
++ P=/tmp/pkg
++ UD=/dev/block/by-name/userdata
++ BOOT=/dev/block/by-name/boot
++ '[' -e /dev/block/by-name/userdata ']'
++ '[' -e /dev/block/by-name/boot ']'
++ '[' -e /tmp/pkg/u-boot.img ']'
++ '[' -e /tmp/pkg/staging-payload.tar.gz ']'
++ '[' -e /tmp/pkg/ubuntu-base.tar.gz ']'
++ '[' -e /tmp/pkg/vmlinuz ']'
++ '[' -e /tmp/pkg/BOOTAA64.EFI ']'
++ '[' -e /tmp/pkg/initramfs-rescue.gz ']'
++ 2>/dev/null
++ mknod /dev/block/sda31 b 259 15
++ 2>/dev/null
++ mknod /dev/zero c 1 5
++ 2>/dev/null
++ mknod /dev/null c 1 3
++ 2>/dev/null
++ mknod /dev/random c 1 8
++ 2>/dev/null
++ mknod /dev/urandom c 1 9
++ 2>&1
++ dd 'if=/tmp/pkg/u-boot.img' 'of=/dev/block/by-name/boot' 'bs=4096' 'conv=fsync'
++ tail -1
+1101824 bytes (1.0 M) copied, 0.012266 s, 86 M/s
++ sync
+### U-Boot written to boot
++ echo '### U-Boot written to boot'
++ tail -1
++ 2>&1
++ dd 'if=/tmp/pkg/staging-payload.tar.gz' 'of=/dev/block/by-name/userdata' 'bs=4096' 'seek=28959744'
+102256087 bytes (98 M) copied, 0.602135 s, 162 M/s
++ sync
+### payload staged (verify gzip magic, expect 1f8b):
++ echo '### payload staged (verify gzip magic, expect 1f8b):'
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=4096' 'skip=28959744' 'count=1'
++ head -c 2
++ xxd
+00000000: 1f8b                                     ..
++ rm -rf /tmp/stage
++ mkdir -p /tmp/stage/dev/block
++ cd /tmp/stage
++ tar xzf /tmp/pkg/ubuntu-base.tar.gz
++ 2>/dev/null
++ mknod dev/null c 1 3
++ 2>/dev/null
++ mknod dev/zero c 1 5
++ 2>/dev/null
++ mknod dev/random c 1 8
++ 2>/dev/null
++ mknod dev/urandom c 1 9
++ 2>/dev/null
++ mknod dev/block/sda31 b 259 15
++ cp /tmp/pkg/BOOTAA64.EFI /tmp/pkg/vmlinuz /tmp/pkg/initramfs-rescue.gz /tmp/pkg/exynos9820-beyond1lte.dtb .
+cp: bad '/tmp/pkg/exynos9820-beyond1lte.dtb': No such file or directory
++ >cfg-loader.conf
++ printf 'timeout 3\ndefault rescue.conf\nconsole-mode keep\neditor no\n'
++ >cfg-rescue.conf
++ printf 'title Rescue installer (S10 Ubuntu)\nlinux /vmlinuz\ninitrd /initramfs-rescue.gz\noptions console=tty0 loglevel=8 panic=30\n'
++ >cfg-ubuntu.conf
++ printf 'title Ubuntu 26.04 LTS (S10)\nlinux /vmlinuz\noptions root=PARTLABEL=ubuntu-root rootwait rw console=tty0 console=ttyGS0,115200n8 loglevel=4\n'
++ >cfg-extlinux.conf
++ printf 'default rescue\nmenu title S10 rescue\ntimeout 0\n\nlabel rescue\n\tmenu label Rescue installer\n\tlinux /vmlinuz\n\tinitrd /initramfs-rescue.gz\n\tdtb /exynos9820-beyond1lte.dtb\n\tappend console=tty0 loglevel=8 panic=30\n\nlabel ubuntu\n\tmenu label Ubuntu 26.04\n\tlinux /vmlinuz\n\tdtb /exynos9820-beyond1lte.dtb\n\tappend root=PARTLABEL=ubuntu-root rootwait rw console=tty0 console=ttyGS0,115200n8 loglevel=4\n'
++ >debugfs.cmds
++ printf 'mkdir /EFI\nmkdir /EFI/BOOT\nwrite /BOOTAA64.EFI /EFI/BOOT/BOOTAA64.EFI\nmkdir /loader\nmkdir /loader/entries\nwrite /cfg-loader.conf /loader/loader.conf\nwrite /cfg-rescue.conf /loader/entries/rescue.conf\nwrite /cfg-ubuntu.conf /loader/entries/ubuntu.conf\nwrite /vmlinuz /vmlinuz\nwrite /initramfs-rescue.gz /initramfs-rescue.gz\nwrite /exynos9820-beyond1lte.dtb /exynos9820-beyond1lte.dtb\nmkdir /extlinux\nwrite /cfg-extlinux.conf /extlinux/extlinux.conf\nquit\n'
++ chroot /tmp/stage /usr/sbin/mke2fs -q -F -t ext4 -b 1024 -L ESP /tmp/esp.img 512M
+ext2fs_check_if_mount: Can't check if filesystem is mounted due to missing mtab file while determining whether /tmp/esp.img is mounted.
++ 2>&1
++ chroot /tmp/stage /usr/sbin/debugfs -w -f /debugfs.cmds /tmp/esp.img
++ tail -4
+debugfs: mkdir /extlinux
+debugfs: write /cfg-extlinux.conf /extlinux/extlinux.conf
+Allocated inode: 24
+debugfs: quit
++ 2>/dev/null
++ chroot /tmp/stage /usr/sbin/debugfs -R 'ls -l /' /tmp/esp.img
++ head -14
+      2   40755 (2)      0      0    1024 13-Nov-2026 02:43 .
+      2   40755 (2)      0      0    1024 13-Nov-2026 02:43 ..
+     11   40700 (2)      0      0   12288 13-Nov-2026 02:43 lost+found
+     13   40755 (2)      0      0    1024 13-Nov-2026 02:43 EFI
+     16   40755 (2)      0      0    1024 13-Nov-2026 02:43 loader
+     21  100644 (1)      0      0   36835840 13-Nov-2026 02:43 vmlinuz
+     22  100644 (1)      0      0   1864368 13-Nov-2026 02:43 initramfs-rescue.gz
+     23   40755 (2)      0      0    1024 13-Nov-2026 02:43 extlinux
+
++ 2>&1
++ dd 'if=/tmp/stage/tmp/esp.img' 'of=/dev/block/by-name/userdata' 'bs=4096' 'seek=256'
++ tail -1
+536870912 bytes (512 M) copied, 2.756637 s, 186 M/s
++ sync
++ echo '=== GPT (EFI PART):'
+=== GPT (EFI PART):
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=1' 'skip=4096' 'count=8'
++ xxd
+00000000: 0800 0000 0900 0000                      ........
++ echo '=== ESP ext4 magic (53ef):'
+=== ESP ext4 magic (53ef):
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=1' 'skip=1049656' 'count=2'
++ xxd
+00000000: 53ef                                     S.
+=== staging gzip (1f8b):
++ echo '=== staging gzip (1f8b):'
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/userdata' 'bs=4096' 'skip=28959744' 'count=1'
++ xxd
++ head -c 2
+00000000: 1f8b                                     ..
+=== boot ANDROID header:
++ echo '=== boot ANDROID header:'
++ 2>/dev/null
++ dd 'if=/dev/block/by-name/boot' 'bs=1' 'count=8'
++ xxd
+00000000: 414e 4452 4f49 4421                      ANDROID!
++ rm -rf /tmp/stage
+===================================================================
+ ALL WRITTEN. Rebooting — rescue installer runs automatically.
++ echo '==================================================================='
++ echo ' ALL WRITTEN. Rebooting — rescue installer runs automatically.'
++ echo ' After it completes it reboots again into Ubuntu (terminal login:'
+ After it completes it reboots again into Ubuntu (terminal login:
+ ubuntu/ubuntu or root/ubuntu on tty1, serial ttyGS0, or SSH over
+ the USB NCM network 172.16.42.1 once configured).
++ echo ' ubuntu/ubuntu or root/ubuntu on tty1, serial ttyGS0, or SSH over'
++ echo ' the USB NCM network 172.16.42.1 once configured).'
+===================================================================
++ echo '==================================================================='
++ sleep 5
++ reboot
+
+~/PyPro/s10-install-ubuntu main 12s
+❯
+
