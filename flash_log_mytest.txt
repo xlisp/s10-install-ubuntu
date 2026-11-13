@@ -71,3 +71,16 @@ xlisp             6863   0.0  0.0 37454376   2780   ??  Ss    9:40AM   0:00.16 /
 ~/PyPro/s10-install-ubuntu main
 ❯
 
+-----------
+
+~/PyPro/s10-install-ubuntu main
+❯ ps aux | grep make
+xlisp            12385  22.3  0.0 37932704   1872 s002  S+    9:50AM   0:00.11 grep make
+xlisp            12255   0.2  0.0 37445376   2408   ??  S     9:50AM   0:00.14 gmake -C /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/out -f /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/u-boot/Makefile
+xlisp            12250   0.0  0.0 37454136    872   ??  S     9:50AM   0:00.00 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/out && sed -i '' 's/^CONFIG_TOOLS_MKEFICAPSULE=.*/# CONFIG_TOOLS_MKEFICAPSULE is not set/' .config; grep -c "CONFIG_TOOLS_MKEFICAPSULE is not set" .config; cd ../u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j8 2>&1 | grep -viE "^\s*(CC|LD|AR|STRIP|OBJCOPY|MKELF|GEN|HOSTCC|HOSTLD|CHK|UPD|CREATE|SHIPPED)" | tail -6; ls -la ../out/u-boot.bin
+xlisp            12249   0.0  0.0 37402448   2128   ??  S     9:50AM   0:00.13 gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS=-I/usr/local/opt/openssl@3/include HOSTLDFLAGS=-L/usr/local/opt/openssl@3/lib -j8
+xlisp            12231   0.0  0.0 37454376   2812   ??  Ss    9:50AM   0:00.15 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/out && sed -i '' 's/^CONFIG_TOOLS_MKEFICAPSULE=.*/# CONFIG_TOOLS_MKEFICAPSULE is not set/' .config; grep -c "CONFIG_TOOLS_MKEFICAPSULE is not set" .config; cd ../u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j8 2>&1 | grep -viE "^\s*(CC|LD|AR|STRIP|OBJCOPY|MKELF|GEN|HOSTCC|HOSTLD|CHK|UPD|CREATE|SHIPPED)" | tail -6; ls -la ../out/u-boot.bin
+
+~/PyPro/s10-install-ubuntu main
+
+
