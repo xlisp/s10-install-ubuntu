@@ -83,4 +83,16 @@ xlisp            12231   0.0  0.0 37454376   2812   ??  Ss    9:50AM   0:00.15 /
 
 ~/PyPro/s10-install-ubuntu main
 
+--->>>
+
+~/PyPro/s10-install-ubuntu main
+❯ fastboot flash boot ./build/flash/u-boot.img
+Sending 'boot' (1076 KB)                           OKAY [  0.025s]
+Writing 'boot'                                     OKAY [  0.083s]
+Finished. Total time: 0.117s
+
+~/PyPro/s10-install-ubuntu main
+❯
+
+自己手动刷了进去，大字体了，看到错误了！
 
