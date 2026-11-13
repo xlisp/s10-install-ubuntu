@@ -96,3 +96,26 @@ Finished. Total time: 0.117s
 
 自己手动刷了进去，大字体了，看到错误了！
 
+### ===== 修复blkmap x8 便宜
+
+❯ ps aux | grep make
+xlisp            27420  14.5  0.0 37922464   1820 s002  S+   10:35AM   0:00.09 grep make
+xlisp            27290   0.1  0.0 37437184   2384   ??  S    10:35AM   0:00.11 gmake -C /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/out -f /Users/xlisp/PyPro/s10-install-ubuntu/build/uboot/u-boot/Makefile
+xlisp            27284   0.0  0.0 37426000   2148   ??  S    10:35AM   0:00.09 gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS=-I/usr/local/opt/openssl@3/include HOSTLDFLAGS=-L/usr/local/opt/openssl@3/lib -j6
+xlisp            27285   0.0  0.0 37420344    848   ??  S    10:35AM   0:00.00 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j6 2>&1 | grep -E "Error|error:" | head -3; ls -la ../out/u-boot.bin && cd ~/PyPro/s10-install-ubuntu/build && python3 -I assets/mkbootimg_lite.py --kernel uboot/out/u-boot.bin --out flash/u-boot.img\012__zcode_status=$?\012if [ "$__zcode_status" -eq 0 ]; then pwd -P > '/var/folders/jv/wjmsxzs55lq8mthncp97lkym0000gn/T/zcode-2de5daa9-c922-417c-a834-481f00e6a966-cwd'; fi\012exit "$__zcode_status"
+xlisp            27270   0.0  0.0 37420584   2728   ??  Ss   10:35AM   0:00.11 /bin/zsh -c . '/Users/xlisp/.zcode/cli/exec/shell-snapshots/snapshot-zsh-1794533986418-yloa64.sh' 2>/dev/null || true\012. '/Users/xlisp/.zcode/cli/exec/bash-startup/sess_227eb730-92c1-41be-ad83-f6427d7dd163/embedded-search-startup-ece10396eb339e47.sh'\012cd ~/PyPro/s10-install-ubuntu/build/uboot/u-boot && export PATH="$HOME/tools/bash52/bin:/usr/local/opt/make/bin:$PATH" && export OPENSSL3="$(brew --prefix openssl@3)" && gmake O=../out CROSS_COMPILE=aarch64-linux-musl- HOSTCFLAGS="-I$OPENSSL3/include" HOSTLDFLAGS="-L$OPENSSL3/lib" -j6 2>&1 | grep -E "Error|error:" | head -3; ls -la ../out/u-boot.bin && cd ~/PyPro/s10-install-ubuntu/build && python3 -I assets/mkbootimg_lite.py --kernel uboot/out/u-boot.bin --out flash/u-boot.img\012__zcode_status=$?\012if [ "$__zcode_status" -eq 0 ]; then pwd -P > '/var/folders/jv/wjmsxzs55lq8mthncp97lkym0000gn/T/zcode-2de5daa9-c922-417c-a834-481f00e6a966-cwd'; fi\012exit "$__zcode_status"
+
+~/PyPro/s10-install-ubuntu main
+❯ fg boot.img
+
+~/PyPro/s10-install-ubuntu main
+❯ fg u-boot.img
+./build/flash/u-boot.img
+
+~/PyPro/s10-install-ubuntu main
+❯ ls -la ./build/flash/u-boot.img
+-rw-r--r--  1 xlisp  staff  1101824 13 Nov 10:08 ./build/flash/u-boot.img
+
+~/PyPro/s10-install-ubuntu main
+❯
+
