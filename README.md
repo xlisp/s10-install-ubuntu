@@ -98,18 +98,24 @@ name="ubuntu-root", size=28828416, type=linux      # 余下 1GiB 为暂存区
 
 并把 **U-Boot** 写入 boot 分区（`dd if=u-boot.img of=/dev/block/by-name/boot`）。
 
-### 阶段 3：一键收尾（当前阶段）
+### 阶段 3：一键刷入（final-package）
 
-手机在 TWRP、adb 已授权时，本机执行：
+前提：TWRP 已就位、userdata 已按上表分区、boot 分区刷过 U-Boot 后被覆盖也不影响
+（本包自带 U-Boot）。手机 adb 已授权（TWRP 下弹窗点允许；触摸失灵就先冷启动）。
 
 ```bash
-cd build/flash && ./final-flash.sh
+cd ~/PyPro/s10-install-ubuntu
+adb push final-package /tmp/pkg
+adb shell sh /tmp/pkg/FLASH-ME.sh     # 跑完自动重启
 ```
 
-流程：推送 5 个文件 → 设备端 `twrp-stage.sh`（暂存 payload + 预置 ESP）→ 重启 →
-**U-Boot → systemd-boot → rescue 安装器**（mainline 内核，屏幕可见进度；USB NCM
-172.16.42.1 起 telnet 调试通道）→ mke2fs rootfs → 解压 ubuntu-base → chroot dpkg
-装 systemd 全家桶 → 用户/服务/USB 网络 → ESP 默认项切到 ubuntu → 重启 → **Ubuntu**。
+脚本做四件事：boot 分区刷 U-Boot（大字体 + blkmap x8 修复）→ payload 写入暂存区 →
+chroot mke2fs+debugfs 构建 ESP（systemd-boot + extlinux 双引导，默认 rescue）→
+重启。随后救援安装器在 mainline 内核上自动完成安装并切换默认启动项，再次重启即
+进入 Ubuntu 26.04（纯终端）。
+
+调试通道：rescue 起来后 USB NCM 网卡出现（Mac 侧 `sudo ifconfig enX 172.16.42.2/24 up`），
+`nc 172.16.42.1 23` 进 busybox shell；屏幕上 panic=30 会把错误信息停留 30 秒可读。
 
 ### 首次启动后（阶段 4）
 

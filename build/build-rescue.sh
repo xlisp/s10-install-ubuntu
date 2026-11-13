@@ -9,7 +9,7 @@
 set -e
 cd "$(dirname "$0")"
 SCRIPT_DIR="$(pwd)"
-APKS=/tmp/alpine-apks
+APKS="$SCRIPT_DIR/apks"
 WORK=/tmp/rescue-build
 STAGING_SECTORS=260000   # payload budget: 260000 * 4096 ≈ 1.016 GiB (region = 262144 sectors)
 
